@@ -5,11 +5,12 @@
 
 module Network.JobQueue.JobQueue.Internal where
 
-import qualified Data.ByteString.Char8 as BS
+import qualified Data.ByteString.Lazy.Char8 as LBS
 import Control.Exception
 import Data.Time.Clock
 import Control.Monad
 import Data.Maybe
+import Data.Aeson
 
 import Network.JobQueue.Class
 import Network.JobQueue.AuxClass
@@ -42,17 +43,17 @@ actionForJob job idName = do
            Aborted -> Skip
            Finished -> Delete
 
-peekJob' :: (Unit a) => JobQueue e a -> IO (Maybe (Job a, String, String, Int))
+peekJob' :: (FromJSON a, Unit a) => JobQueue e a -> IO (Maybe (Job a, String, String, Int))
 peekJob' JobQueue { jqBackendQueue = bq } = do
   obj <- peekQueue bq
   case obj of
     Nothing -> return (Nothing)
     Just (value, nodeName, idName, version) -> do
-      case (fmap fst . listToMaybe . reads) $ BS.unpack value of
+      case decodeStrict value of
         Nothing -> return (Nothing)
         Just job -> return (Just (job, nodeName, idName, version))
 
-executeJob' :: (Aux e, Env e, Unit a) => JobQueue e a -> e -> String -> Job a -> Int -> IO (Either Break (Maybe (RuntimeState a)))
+executeJob' :: (Aux e, Env e, ToJSON a, Unit a) => JobQueue e a -> e -> String -> Job a -> Int -> IO (Either Break (Maybe (RuntimeState a)))
 executeJob' jqueue@JobQueue { jqBackendQueue = bq, jqActionState = actionState } env nodeName currentJob version = do
   currentTime <- getCurrentTime
   if jobOnTime currentJob < currentTime
@@ -60,10 +61,10 @@ executeJob' jqueue@JobQueue { jqBackendQueue = bq, jqActionState = actionState }
       runActionState actionState env (jobUnit currentJob)
     else do
       r <- updateJob jqueue nodeName currentJob { jobState = Finished } (version+1)
-      when r $ void $ writeQueue bq (pack $ currentJob { jobState = Runnable } ) (jobPriority currentJob)
+      when r $ void $ writeQueue bq (LBS.toStrict $ encode $ currentJob { jobState = Runnable } ) (jobPriority currentJob)
       return $ Right Nothing
 
-afterExecuteJob :: (Aux e, Env e, Unit a) => JobQueue e a -> e -> String -> Job a -> Int -> Either Break (Maybe (RuntimeState a)) -> IO ()
+afterExecuteJob :: (Aux e, Env e, ToJSON a, Unit a) => JobQueue e a -> e -> String -> Job a -> Int -> Either Break (Maybe (RuntimeState a)) -> IO ()
 afterExecuteJob jqueue env nodeName currentJob version mResult = case mResult of
   Right (Just (RS mNextJu forks _)) -> do
     case mNextJu of
@@ -93,20 +94,16 @@ afterExecuteJob jqueue env nodeName currentJob version mResult = case mResult of
         _r <- updateJob jqueue nodeName currentJob { jobState = Finished } (version+1)
         return ()
 
-rescheduleJob :: (Unit a) => JobQueue e a -> Maybe UTCTime -> a -> IO ()
+rescheduleJob :: (ToJSON a, Unit a) => JobQueue e a -> Maybe UTCTime -> a -> IO ()
 rescheduleJob JobQueue { jqBackendQueue = bq } mOntime ju = do
   job <- case mOntime of
     Just ontime -> createOnTimeJob Initialized ontime ju
     Nothing -> createJob Initialized ju
-  void $ writeQueue bq (pack $ job) (getPriority ju)
+  void $ writeQueue bq (LBS.toStrict $ encode job) (getPriority ju)
 
-updateJob :: (Unit a) => JobQueue e a -> String -> Job a -> Int -> IO (Bool)
+updateJob :: (ToJSON a, Unit a) => JobQueue e a -> String -> Job a -> Int -> IO (Bool)
 updateJob JobQueue { jqBackendQueue = bq } nodeName job version = do
-  updateQueue bq nodeName (pack job) version `catch` handleError
+  updateQueue bq nodeName (LBS.toStrict $ encode job) version `catch` handleError
   where
     handleError :: BackendError -> IO (Bool)
     handleError _ = return (False)
-
-pack :: (Unit a) => Job a -> BS.ByteString
-pack = BS.pack . show
-

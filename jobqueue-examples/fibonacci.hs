@@ -1,10 +1,12 @@
 
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 import Control.Monad
 import Control.Monad.IO.Class
 import System.Environment hiding (getEnv)
 import Network.JobQueue
+import Data.Aeson.TH
 
 data JobEnv = JobEnv {
     jeLimit :: Int
@@ -17,6 +19,8 @@ data JobUnit =
     InitialStep
   | ComputationStep Integer Integer [Integer]
   deriving (Show, Read, Eq, Ord)
+
+$(deriveJSON defaultOptions ''JobUnit)
 
 instance Unit JobUnit where
   getPriority _ju = 1

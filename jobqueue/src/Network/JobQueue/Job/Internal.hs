@@ -1,14 +1,19 @@
+{-# LANGUAGE TemplateHaskell #-}
 
 module Network.JobQueue.Job.Internal where
 
+import Data.Char
 import Data.Time.Clock
 import System.Log.Logger
 import System.IO
+import Data.Aeson.TH
 
 import Network.JobQueue.Class
 
 data JobState = Initialized | Runnable | Running | Aborted | Finished
   deriving (Show, Read, Eq)
+
+$(deriveJSON defaultOptions{constructorTagModifier = map toLower} ''JobState)
 
 {- | Job control block
 Job consists of /State/, /Unit/, /CTime/, /OnTime/, /Id/, /Group/, and /Priority/.
@@ -39,6 +44,8 @@ data Job a =
     , jobPriority :: Int }
   | StopTheWorld
   deriving (Show, Read, Eq)
+
+$(deriveJSON defaultOptions { fieldLabelModifier = drop 3, constructorTagModifier = map toLower } ''Job)
 
 createJob :: (Unit a) => JobState -> a -> IO (Job a)
 createJob state unit = do

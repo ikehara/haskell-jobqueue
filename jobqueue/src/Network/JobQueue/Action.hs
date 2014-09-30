@@ -34,7 +34,7 @@ import Control.Monad.Base ()
 
 import Data.Maybe
 import Data.Time.Clock
-import Data.Default (Default, def)
+import Data.Default (def)
 
 import Network.JobQueue.Class
 import Network.JobQueue.AuxClass

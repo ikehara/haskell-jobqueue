@@ -5,6 +5,8 @@
 -}
 module Network.JobQueue.Class where
 
+import Data.Aeson
+
 {- | Environment class
 -}
 class Env a where
@@ -30,7 +32,7 @@ class (Show a) => Desc a where
 
 {- | Unit class
 -}
-class (Read a, Show a, Desc a, Eq a) => Unit a where
+class (FromJSON a, ToJSON a, Desc a, Eq a) => Unit a where
   {- | Define the priority of a unit.
   -}
   getPriority :: a -> Int

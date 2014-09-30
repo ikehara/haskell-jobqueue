@@ -114,6 +114,7 @@ module Network.JobQueue (
 import Prelude hiding (log)
 import Control.Exception
 import Control.Monad
+import Data.Aeson
 
 import Network.JobQueue.Types
 import Network.JobQueue.Class
@@ -158,7 +159,7 @@ buildJobQueue loc name jobm = \action -> do
 
 {- | Run a job queue while there is at least one job in the queue.
 -}
-runJobQueue :: (Aux e, Env e, Unit a)
+runJobQueue :: (Aux e, Env e, FromJSON a, ToJSON a, Unit a)
                => e
                -> String          -- ^ locator (ex.\"zookeeper:\/\/192.168.0.1\/myapp\")
                -> String          -- ^ queue name (ex. \"/jobqueue\")

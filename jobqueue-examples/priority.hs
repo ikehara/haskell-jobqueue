@@ -1,9 +1,11 @@
 
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 import Control.Monad
 import System.Environment hiding (getEnv)
 import Network.JobQueue
+import Data.Aeson.TH
 
 data JobEnv = JobEnv {
   } deriving (Eq, Show)
@@ -12,6 +14,8 @@ instance Env JobEnv where
 instance Aux JobEnv where
 
 data JobUnit = Priority0 | Priority1 Int | Priority1' Int | Priority2 | Failed deriving (Show, Read, Eq, Ord)
+
+$(deriveJSON defaultOptions ''JobUnit)
 
 instance Unit JobUnit where
   getPriority Priority0 = -1

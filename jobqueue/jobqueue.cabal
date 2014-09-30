@@ -43,6 +43,7 @@ Library
                  , monad-control
                  , transformers-base
                  , lifted-base
+                 , aeson                    >= 0.7
   Hs-source-dirs:  src
   Exposed-modules: Network.JobQueue
                  , Network.JobQueue.Class

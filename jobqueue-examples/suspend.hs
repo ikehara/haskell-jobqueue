@@ -1,8 +1,11 @@
 
+{-# LANGUAGE TemplateHaskell #-}
+
 import Control.Concurrent
 import Control.Monad
 import System.Environment hiding (getEnv)
 import Network.JobQueue
+import Data.Aeson.TH
 
 data JobEnv = JobEnv {
     jeLimit :: Integer
@@ -12,6 +15,8 @@ instance Env JobEnv where
 instance Aux JobEnv where
 
 data JobUnit = ExecuteStep Integer deriving (Show, Read, Eq, Ord)
+
+$(deriveJSON defaultOptions ''JobUnit)
 
 instance Unit JobUnit where
   getPriority _ju = 1
@@ -26,8 +31,8 @@ main = do
     (loc:name:args') -> do
       let withJobQueue = buildJobQueue loc name $ do
             process $ \(ExecuteStep r) -> do
-              commitIO (putStrLn "executing")
-              commitIO (threadDelay 1000000)
+              liftIO (putStrLn "executing")
+              liftIO (threadDelay 1000000)
               env <- getEnv
               if r < jeLimit env
                 then next $ ExecuteStep (r+1)

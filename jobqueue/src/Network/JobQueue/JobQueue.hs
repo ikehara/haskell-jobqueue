@@ -25,8 +25,8 @@ import Control.Applicative
 import Control.Concurrent
 import Control.Monad
 import Control.Exception
-import qualified Data.ByteString.Char8 as BS
-import Data.Maybe
+import Data.Aeson
+import qualified Data.ByteString.Lazy.Char8 as LBS
 
 import Network.JobQueue.Class
 import Network.JobQueue.AuxClass
@@ -87,7 +87,7 @@ countJobQueue JobQueue { jqBackendQueue = bq } = countQueue bq
 
 {- | Resume a job queue
 -}
-resumeJobQueue :: (Env e, Unit a) => JobQueue e a -> IO (Bool)
+resumeJobQueue :: (Env e, FromJSON a, Unit a) => JobQueue e a -> IO (Bool)
 resumeJobQueue jobqueue = do
   r <- peekJob' jobqueue
   case r of
@@ -100,7 +100,7 @@ resumeJobQueue jobqueue = do
 
 {- | Suspend a job queue
 -}
-suspendJobQueue :: forall e. forall a. (Env e, Unit a) => JobQueue e a -> IO (Bool)
+suspendJobQueue :: forall e. forall a. (Env e, FromJSON a, ToJSON a, Unit a) => JobQueue e a -> IO (Bool)
 suspendJobQueue jobqueue = do
   r <- peekJob' jobqueue
   case r of
@@ -109,11 +109,11 @@ suspendJobQueue jobqueue = do
       _ -> suspend jobqueue >> return True
     _ -> suspend jobqueue >> return True
   where
-    suspend JobQueue { jqBackendQueue = bq } = writeQueue bq (pack (StopTheWorld :: Job a)) (-1)
+    suspend JobQueue { jqBackendQueue = bq } = writeQueue bq (LBS.toStrict $ encode (StopTheWorld :: Job a)) (-1)
 
 {- | Execute an action of the head job in a job queue.
 -}
-executeJob :: (Aux e, Env e, Unit a) => JobQueue e a -> e -> IO ()
+executeJob :: (Aux e, Env e, FromJSON a, ToJSON a, Unit a) => JobQueue e a -> e -> IO ()
 executeJob jobqueue env = do
   r <- peekJob' jobqueue
   case r of
@@ -134,13 +134,13 @@ executeJob jobqueue env = do
 
 {- | Schedule a job.
 -}
-scheduleJob :: (Unit a)
+scheduleJob :: (ToJSON a, Unit a)
                => JobQueue e a -- ^ a job queue
                -> a            -- ^ a unit
                -> IO ()
 scheduleJob JobQueue { jqBackendQueue = bq } ju = do
   job <- createJob Initialized ju
-  void $ writeQueue bq (pack job) (getPriority ju)
+  void $ writeQueue bq (LBS.toStrict $ encode job) (getPriority ju)
 
 {- | Delete a job from a job queue.
 -}
@@ -155,7 +155,7 @@ deleteJob JobQueue { jqBackendQueue = bq } nodeName = do
 
 {- | Clear all jobs from a job queue.
 -}
-clearJobs :: (Unit a)
+clearJobs :: (FromJSON a, Unit a)
              => JobQueue e a -- ^ a job queue
              -> IO [(String, Job a)]
 clearJobs JobQueue { jqBackendQueue = bq } = loop []
@@ -164,13 +164,13 @@ clearJobs JobQueue { jqBackendQueue = bq } = loop []
       obj <- readQueue bq
       case obj of
         Nothing -> return dequeued
-        Just (bs, nodeName) -> case (fmap fst . listToMaybe . reads) $ BS.unpack bs of
+        Just (bs, nodeName) -> case decodeStrict bs of
           Nothing -> return dequeued
           Just job -> loop ((nodeName, job):dequeued)
 
 {- | Peek a job form a job queue.
 -}
-peekJob :: (Unit a)
+peekJob :: (FromJSON a, Unit a)
            => JobQueue e a -- ^ a job queue
            -> IO (Maybe (Job a))
 peekJob jobqueue = do
