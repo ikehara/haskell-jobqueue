@@ -22,7 +22,7 @@ before_install:
  - travis_retry sudo apt-get install libzookeeper-mt-dev
  - travis_retry sudo apt-get install zookeeperd
  - export PATH=$HOME/.cabal/bin:/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:$PATH
- - cd jobqueue
+ - cd jobqueue-all
 
 install:
  - cabal update
